@@ -11,10 +11,18 @@ from pydantic import BaseModel, ValidationError, field_validator
 
 # Dollars per million tokens: input, output, cache write (5 min), cache read.
 TOKEN_PRICES = {
+    "claude-haiku-5-5": (0.10, 0.50, 0.125, 0.01),
     "claude-sonnet-5-5": (2.00, 10.00, 2.50, 0.10),
     "claude-sonnet-5": (2.00, 10.00, 2.50, 0.20),
 }
+# Haiku 5.5 costs more once a single request's prompt passes 100K tokens.
+LONG_PROMPT_PRICES = {"claude-haiku-5-5": (100_000, (0.50, 2.50, 0.625, 0.05))}
 UNKNOWN_MODEL_PRICES = (4.00, 20.00, 5.00, 0.40)  # priced high on purpose so caps stay safe
+
+# Models that support the newer web tools (results filtered before they reach Claude)
+# and server-side refusal fallbacks. Others, like Haiku 5.5, get the standard web tools.
+NEWER_WEB_TOOL_MODELS = ("claude-opus", "claude-sonnet-5", "claude-sonnet-4-6", "claude-fable", "claude-mythos")
+FALLBACK_MODELS = ("claude-sonnet-5-5", "claude-opus-5-5", "claude-opus-5", "claude-fable-5-1", "claude-fable-5-2")
 WEB_SEARCH_PRICE = 0.01  # $10 per 1,000 searches; web fetch has no extra charge
 
 log = logging.getLogger("accio.finder")
@@ -111,16 +119,23 @@ REPORT_TOOL = {
     },
 }
 
-TOOLS = [
-    {
-        "type": "web_search_20260209",
-        "name": "web_search",
-        "max_uses": MAX_WEB_SEARCHES,
-        "user_location": {"type": "approximate", "country": "US"},
-    },
-    {"type": "web_fetch_20260209", "name": "web_fetch", "max_uses": MAX_WEB_FETCHES, "max_content_tokens": 8000},
-    REPORT_TOOL,
-]
+def tools_for(model: str) -> list[dict]:
+    newer = model.startswith(NEWER_WEB_TOOL_MODELS)
+    return [
+        {
+            "type": "web_search_20260209" if newer else "web_search_20250305",
+            "name": "web_search",
+            "max_uses": MAX_WEB_SEARCHES,
+            "user_location": {"type": "approximate", "country": "US"},
+        },
+        {
+            "type": "web_fetch_20260209" if newer else "web_fetch_20250910",
+            "name": "web_fetch",
+            "max_uses": MAX_WEB_FETCHES,
+            "max_content_tokens": 8000,
+        },
+        REPORT_TOOL,
+    ]
 
 
 # ---------------------------------------------------------------- validation of Claude's report
@@ -272,6 +287,9 @@ class SearchCost:
         server = getattr(usage, "server_tool_use", None)
         searches = (getattr(server, "web_search_requests", 0) or 0) if server else 0
         p_in, p_out, p_cw, p_cr = TOKEN_PRICES.get(model, UNKNOWN_MODEL_PRICES)
+        threshold, long_prices = LONG_PROMPT_PRICES.get(model, (None, None))
+        if threshold and inp + cw + cr > threshold:
+            p_in, p_out, p_cw, p_cr = long_prices
         self.input_tokens += inp
         self.output_tokens += out
         self.cache_write_tokens += cw
@@ -301,6 +319,21 @@ class DealFinder:
         self._model = model
         self._effort = effort
 
+    def _request(self, messages: list[dict]) -> dict:
+        request = {
+            "model": self._model,
+            "max_tokens": 16000,
+            "system": SYSTEM_PROMPT,
+            "tools": tools_for(self._model),
+            "messages": messages,
+            "output_config": {"effort": self._effort},
+        }
+        if self._model.startswith(FALLBACK_MODELS):
+            # If the model declines a search, the API retries it on a recommended model.
+            request["betas"] = ["server-side-fallback-2026-07-01"]
+            request["fallbacks"] = "default"
+        return request
+
     @staticmethod
     def prompt(query: str, today: date) -> str:
         return (
@@ -314,16 +347,7 @@ class DealFinder:
         nudged = False
         for _ in range(MAX_ROUNDS):
             try:
-                response = await self._client.beta.messages.create(
-                    model=self._model,
-                    max_tokens=16000,
-                    system=SYSTEM_PROMPT,
-                    tools=TOOLS,
-                    messages=messages,
-                    output_config={"effort": self._effort},
-                    betas=["server-side-fallback-2026-07-01"],
-                    fallbacks="default",
-                )
+                response = await self._client.beta.messages.create(**self._request(messages))
             except anthropic.APIStatusError as exc:
                 log.warning("Claude API error %s: %s", exc.status_code, getattr(exc, "message", exc))
                 raise FinderError(_friendly_api_error(exc), cost) from exc

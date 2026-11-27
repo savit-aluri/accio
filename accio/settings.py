@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parent.parent
 
-MODEL = "claude-sonnet-5-5"
+MODEL = "claude-haiku-5-5"  # cheapest; set ACCIO_MODEL=claude-sonnet-5-5 in .env for Sonnet
 SECRET_FILE = Path("/etc/secrets/friends.toml")  # where Render mounts secret files
 
 

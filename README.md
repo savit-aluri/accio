@@ -7,7 +7,7 @@ A small website for friends, named after the summoning charm: type what you're s
 - **Shared results.** A search anyone ran in the last 6 hours opens instantly for everyone, for free. "Air fryers", "air fryer deals" and "best Black Friday air fryer" count as the same search. If two friends search the same thing at once, only one search runs.
 - **Compare stores.** Deal cards list every store's price with the lowest marked. The "Compare stores" view shows a table with one column per store, and "check ↗" links that look a product up at stores the articles didn't mention.
 
-Searches use Claude Sonnet 5.5 with web search. A new search costs roughly $0.20–0.35 (measured cost is shown after each search and in `python manage.py usage`).
+Searches use Claude Haiku 5.5, Anthropic's cheapest model, with web search. A new search measured about $0.12 (vs $0.39 on Sonnet 5.5), so a friend's $1 a day covers about 8 new searches. The cost of each search is shown after it runs and in `python manage.py usage`. To use Sonnet 5.5 instead, for more careful results, add `ACCIO_MODEL=claude-sonnet-5-5` to `.env`.
 
 ## Setup (once)
 
