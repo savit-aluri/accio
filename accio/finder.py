@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from datetime import date
 
@@ -15,6 +16,8 @@ TOKEN_PRICES = {
 }
 UNKNOWN_MODEL_PRICES = (4.00, 20.00, 5.00, 0.40)  # priced high on purpose so caps stay safe
 WEB_SEARCH_PRICE = 0.01  # $10 per 1,000 searches; web fetch has no extra charge
+
+log = logging.getLogger("accio.finder")
 
 MAX_WEB_SEARCHES = 6
 MAX_WEB_FETCHES = 3
@@ -321,6 +324,7 @@ class DealFinder:
                     fallbacks="default",
                 )
             except anthropic.APIStatusError as exc:
+                log.warning("Claude API error %s: %s", exc.status_code, getattr(exc, "message", exc))
                 raise FinderError(_friendly_api_error(exc), cost) from exc
             except anthropic.APIConnectionError as exc:
                 raise FinderError("Couldn't reach Claude. Try again in a minute.", cost) from exc
@@ -373,6 +377,8 @@ def _friendly_api_error(exc: anthropic.APIStatusError) -> str:
         message = str(getattr(exc, "message", exc))
         if "credit" in message.lower() or "billing" in message.lower():
             return "The site's API account is out of credit. Tell the person who runs this site."
+        if "workspace" in message.lower():
+            return "The site's API key needs a workspace ID. Tell the person who runs this site."
         return "The search request was rejected. Try different wording."
     if exc.status_code >= 500:
         return "Claude is having trouble right now. Try again in a minute."

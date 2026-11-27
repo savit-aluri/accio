@@ -27,7 +27,10 @@ directory = FriendDirectory(settings.friends)
 limiter = AttemptLimiter()
 ledger = SpendLedger(db, settings.timezone)
 cache = DealCache(db, settings.cache_hours)
-finder = DealFinder(anthropic.AsyncAnthropic(max_retries=2), model=settings.model)
+# Organization-wide API keys must name a workspace on every request.
+_workspace = os.environ.get("ANTHROPIC_WORKSPACE_ID")
+_client_options = {"default_headers": {"anthropic-workspace-id": _workspace}} if _workspace else {}
+finder = DealFinder(anthropic.AsyncAnthropic(max_retries=2, **_client_options), model=settings.model)
 jobs = JobManager(finder, cache, ledger, settings)
 
 app = FastAPI(title="Accio", docs_url=None, redoc_url=None, openapi_url=None)
