@@ -3,17 +3,46 @@
 from __future__ import annotations
 
 import hmac
+import logging
 import time
+import tomllib
 from collections import defaultdict, deque
+from pathlib import Path
 
-from .settings import Friend
+from .settings import Friend, Settings
+
+log = logging.getLogger("accio.access")
 
 
 class FriendDirectory:
-    """Looks up the friend an invite code belongs to."""
+    """Looks up the friend an invite code belongs to.
 
-    def __init__(self, friends: tuple[Friend, ...]):
+    Watches friends.toml, so adding a friend or turning a code off takes effect
+    on the running site without a restart (and without changing its public link).
+    """
+
+    def __init__(self, friends: tuple[Friend, ...], source: Path | None = None):
         self._friends = friends
+        self._source = source
+        self._mtime = self._stat()
+
+    def _stat(self) -> float | None:
+        try:
+            return self._source.stat().st_mtime if self._source else None
+        except OSError:
+            return None
+
+    def refresh(self) -> None:
+        mtime = self._stat()
+        if mtime is None or mtime == self._mtime:
+            return
+        try:
+            friends = Settings.parse_friends(tomllib.loads(self._source.read_text()))
+        except (OSError, ValueError, tomllib.TOMLDecodeError, KeyError) as exc:
+            log.warning("friends.toml changed but couldn't be read, keeping the old list: %s", exc)
+            return
+        self._friends, self._mtime = friends, mtime
+        log.info("friends.toml reloaded: %d active codes", len(friends))
 
     def lookup(self, code: str | None) -> Friend | None:
         if not code:

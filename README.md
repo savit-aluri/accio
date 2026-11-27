@@ -24,7 +24,7 @@ Searches use Claude Haiku 5.5, Anthropic's cheapest model, with web search. A ne
    python manage.py add-friend "Maya"            # prints Maya's code
    python manage.py add-friend "You" --cap 3.00  # a bigger cap for yourself
    ```
-   Limits live in `friends.toml` (`daily_cap_per_friend`, `daily_cap_site`, `cache_hours`). To turn a code off, add `active = false` under that friend. Restart the server after editing.
+   Limits live in `friends.toml` (`daily_cap_per_friend`, `daily_cap_site`, `cache_hours`). To turn a code off, add `active = false` under that friend. A running site picks up friend changes within seconds; changes to `[limits]` need a restart.
 
 ## Run
 

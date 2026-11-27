@@ -41,7 +41,7 @@ def add_friend(name: str, cap: float | None) -> None:
     with FRIENDS.open("a") as fh:
         fh.write(block)
     print(f"Added {name}. Their invite code is: {code}")
-    print("Restart the server so it picks up the change.")
+    print("A running Accio picks this up within seconds. No restart needed.")
 
 
 def list_friends() -> None:

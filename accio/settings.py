@@ -42,13 +42,12 @@ class Settings:
     data_dir: Path
     model: str
     database_url: str | None = None
+    friends_file: Path | None = None  # watched for changes; None when friends come from an env var
 
-    @classmethod
-    def load(cls, root: Path = ROOT) -> "Settings":
-        load_dotenv(root / ".env")
-        config = tomllib.loads(cls._friends_text(root))
-        limits = config.get("limits", {})
-        per_friend = float(limits.get("daily_cap_per_friend", 1.00))
+    @staticmethod
+    def parse_friends(config: dict) -> tuple[Friend, ...]:
+        """Active friends from a parsed friends.toml. Raises ValueError if two share a code."""
+        per_friend = float(config.get("limits", {}).get("daily_cap_per_friend", 1.00))
         friends = tuple(
             Friend(
                 name=str(entry["name"]),
@@ -60,7 +59,19 @@ class Settings:
         )
         codes = [f.code.lower() for f in friends]
         if len(codes) != len(set(codes)):
-            raise SystemExit("Two friends in friends.toml share the same code. Give each a unique code.")
+            raise ValueError("Two friends in friends.toml share the same code. Give each a unique code.")
+        return friends
+
+    @classmethod
+    def load(cls, root: Path = ROOT) -> "Settings":
+        load_dotenv(root / ".env")
+        friends_file = cls.friends_path(root)
+        config = tomllib.loads(os.environ["ACCIO_FRIENDS_TOML"] if friends_file is None else friends_file.read_text())
+        limits = config.get("limits", {})
+        try:
+            friends = cls.parse_friends(config)
+        except ValueError as exc:
+            raise SystemExit(str(exc)) from exc
 
         data_dir = Path(os.environ.get("ACCIO_DATA", root / "data"))
         data_dir.mkdir(parents=True, exist_ok=True)
@@ -72,19 +83,19 @@ class Settings:
             data_dir=data_dir,
             model=os.environ.get("ACCIO_MODEL", MODEL),
             database_url=os.environ.get("DATABASE_URL") or None,
+            friends_file=friends_file,
         )
 
     @staticmethod
-    def _friends_text(root: Path) -> str:
-        """friends.toml content: from ACCIO_FRIENDS_TOML, ACCIO_FRIENDS (a path),
-        a Render secret file at /etc/secrets/friends.toml, or the project folder."""
-        inline = os.environ.get("ACCIO_FRIENDS_TOML")
-        if inline:
-            return inline
+    def friends_path(root: Path) -> Path | None:
+        """Where friends.toml lives: ACCIO_FRIENDS (a path), a Render secret file at
+        /etc/secrets/friends.toml, or the project folder. None if ACCIO_FRIENDS_TOML holds it."""
+        if os.environ.get("ACCIO_FRIENDS_TOML"):
+            return None
         candidates = [os.environ.get("ACCIO_FRIENDS"), SECRET_FILE, root / "friends.toml"]
         for candidate in candidates:
             if candidate and Path(candidate).exists():
-                return Path(candidate).read_text()
+                return Path(candidate)
         raise SystemExit(
             "Missing friends.toml. Copy friends.example.toml to friends.toml, "
             "then add friends with: python manage.py add-friend NAME"

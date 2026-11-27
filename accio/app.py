@@ -23,7 +23,7 @@ STATIC = Path(__file__).resolve().parent / "static"
 
 settings = Settings.load()
 db = Database(settings.data_dir / "accio.db", settings.database_url)
-directory = FriendDirectory(settings.friends)
+directory = FriendDirectory(settings.friends, settings.friends_file)
 limiter = AttemptLimiter()
 ledger = SpendLedger(db, settings.timezone)
 cache = DealCache(db, settings.cache_hours)
@@ -48,6 +48,7 @@ def current_friend(request: Request, x_access_code: str | None = Header(default=
     client_id = request.headers.get("cf-connecting-ip") or (request.client.host if request.client else "unknown")
     if limiter.blocked(client_id):
         raise HTTPException(429, "Too many wrong codes. Wait 10 minutes and try again.")
+    directory.refresh()
     friend = directory.lookup(x_access_code)
     if friend is None:
         limiter.record_failure(client_id)
