@@ -35,11 +35,22 @@ uvicorn accio.app:app --port 8000
 
 Open http://localhost:8000 and enter a code.
 
+## Share from your Mac (simplest)
+
+Your Mac runs the site and Cloudflare's free quick tunnel gives it a public https link. No accounts needed.
+
+1. Put `cloudflared` in a `bin/` folder here: download `cloudflared-darwin-arm64.tgz` (Apple silicon) or `cloudflared-darwin-amd64.tgz` (Intel) from https://github.com/cloudflare/cloudflared/releases and unpack it into `bin/`.
+2. Double-click **Start Accio (Mac).command**. It prints the public link and a ready-to-text message for each friend with their own code. The first time, macOS may ask whether Terminal can access the Desktop folder: allow it.
+3. Keep that window open. Your Mac stays awake while it's open; closing it takes Accio offline.
+
+The link is different every time you start Accio, so text friends the new one (`python manage.py invite` prints the messages again).
+
 ## Admin
 
 ```bash
-python manage.py friends   # names, codes and caps
-python manage.py usage     # what each friend spent, per day
+python manage.py friends        # names, codes and caps
+python manage.py usage          # what each friend spent, per day
+python manage.py invite [NAME]  # messages to text, with the current link and each code
 ```
 
 ## Put it online for free (Render + Neon)

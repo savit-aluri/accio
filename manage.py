@@ -4,6 +4,7 @@
     python manage.py add-friend "Sam" --cap 2.00  # a bigger daily cap for one person
     python manage.py friends                      # list friends and codes
     python manage.py usage                        # what each friend spent, last 7 days
+    python manage.py invite [NAME]                # ready-to-text messages with the link and code
 """
 
 from __future__ import annotations
@@ -51,6 +52,24 @@ def list_friends() -> None:
         print(f"{f['name']:<16} {f['code']:<22} ${float(f.get('daily_cap', per)):.2f}/day{state}")
 
 
+def invite(url: str | None, name: str | None) -> None:
+    """Prints a ready-to-text message for each friend: the link plus their own code."""
+    link_file = ROOT / "data" / "public_url.txt"
+    url = url or (link_file.read_text().strip() if link_file.exists() else None)
+    if not url:
+        sys.exit("No public link yet. Start Accio first, or pass --url.")
+    config = tomllib.loads(FRIENDS.read_text()) if FRIENDS.exists() else {}
+    friends = [f for f in config.get("friends", []) if f.get("active", True)]
+    if name:
+        friends = [f for f in friends if f["name"].lower() == name.lower()]
+        if not friends:
+            sys.exit(f"No active friend called {name} in friends.toml.")
+    print("Text each friend their own message:\n")
+    for f in friends:
+        print(f"  To {f['name']}:")
+        print(f"  Accio finds this week's best Black Friday deals and compares store prices. {url}  Your code: {f['code']}\n")
+
+
 def usage() -> None:
     sys.path.insert(0, str(ROOT))
     from accio.settings import Settings
@@ -73,11 +92,16 @@ def main() -> None:
     add.add_argument("--cap", type=float, help="Daily cap in dollars for this person")
     sub.add_parser("friends", help="List friends and codes")
     sub.add_parser("usage", help="Spending per friend")
+    inv = sub.add_parser("invite", help="Print a message to text each friend")
+    inv.add_argument("name", nargs="?", help="Only this friend")
+    inv.add_argument("--url", help="Public link (defaults to the one Start Accio printed)")
     args = parser.parse_args()
     if args.command == "add-friend":
         add_friend(args.name, args.cap)
     elif args.command == "friends":
         list_friends()
+    elif args.command == "invite":
+        invite(args.url, args.name)
     else:
         usage()
 

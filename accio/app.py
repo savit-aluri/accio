@@ -39,7 +39,10 @@ if not settings.friends:
 
 
 def current_friend(request: Request, x_access_code: str | None = Header(default=None)) -> Friend:
-    client_id = request.client.host if request.client else "unknown"
+    # Behind a Cloudflare tunnel every request arrives from 127.0.0.1, so use the visitor's
+    # address Cloudflare passes along. The server only listens on 127.0.0.1, so only the
+    # tunnel (or you, locally) can reach it and set this header.
+    client_id = request.headers.get("cf-connecting-ip") or (request.client.host if request.client else "unknown")
     if limiter.blocked(client_id):
         raise HTTPException(429, "Too many wrong codes. Wait 10 minutes and try again.")
     friend = directory.lookup(x_access_code)
