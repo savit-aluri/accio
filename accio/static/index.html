@@ -1,0 +1,753 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Accio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: a store aisle. Search sign up top, deals as hang tags on a shelf grid,
+   a price board comparing stores, store-wide sales as a receipt. */
+:root {
+  --paper: #F3F5F9; --card: #FFFFFF; --ink: #141C33; --muted: #59627A; --line: #D8DDE8;
+  --tag: #FFD23F; --tag-ink: #1A170B; --sale: #B5132E; --good: #13784A; --good-bg: #E3F4EA;
+  --focus: #2F55D4; --chip: #E7EBF3; --shadow: 0 1px 2px rgb(20 28 51 / .06), 0 8px 24px rgb(20 28 51 / .08);
+  --btn-bg: #141C33; --btn-fg: #FFD23F;
+  --f-display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+  --f-body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --ease-out: cubic-bezier(.22, 1, .36, 1);
+  --ease-spring: cubic-bezier(.34, 1.56, .64, 1);
+}
+@media (prefers-color-scheme: dark) {
+  :root { --paper: #0C1220; --card: #141B2E; --ink: #E7EBF5; --muted: #9AA3BB; --line: #27304A;
+    --sale: #FF6B80; --good: #4CD493; --good-bg: #12382A; --focus: #8BA6FF; --chip: #1C2540;
+    --shadow: 0 1px 2px rgb(0 0 0 / .3), 0 10px 28px rgb(0 0 0 / .35); --btn-bg: #FFD23F; --btn-fg: #1A170B; color-scheme: dark; }
+}
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--paper); color: var(--ink); font: 16px/1.5 var(--f-body); -webkit-font-smoothing: antialiased; }
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+[hidden] { display: none !important; }
+.wrap { max-width: 1180px; margin: 0 auto; padding-block: 24px 72px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 32px; }
+.stack { display: grid; gap: 32px; }
+
+/* view transitions (native browser API) */
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: .32s; animation-timing-function: var(--ease-out); }
+.results { view-transition-name: results; }
+.top { view-transition-name: top; }
+
+/* header */
+.top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.logo { display: inline-flex; align-items: center; gap: 10px; font: 800 1.4rem/1 var(--f-display); text-transform: uppercase; letter-spacing: .02em; }
+.logo-tag { width: 32px; height: 20px; background: var(--tag); clip-path: polygon(28% 0, 100% 0, 100% 100%, 28% 100%, 0 50%); position: relative; transform-origin: 6px 50%; animation: swing 2.4s var(--ease-out) .3s both; }
+.logo-tag::after { content: ""; position: absolute; left: 8px; top: 7.5px; width: 5px; height: 5px; border-radius: 50%; background: var(--paper); }
+@keyframes swing { 0% { transform: rotate(-24deg); } 30% { transform: rotate(14deg); } 55% { transform: rotate(-7deg); } 78% { transform: rotate(3deg); } 100% { transform: rotate(0); } }
+.who { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; font-size: .92rem; color: var(--muted); }
+.meter { font-family: var(--f-mono); font-size: .8rem; color: var(--ink); background: var(--chip); border-radius: 999px; padding: 4px 10px; font-variant-numeric: tabular-nums; }
+.linkbtn { font: inherit; color: var(--muted); background: none; border: 0; padding: 0; text-decoration: underline; cursor: pointer; }
+
+/* hero + search */
+.hero { display: grid; gap: 16px; }
+.rise { animation: rise .6s var(--ease-out) both; }
+.rise:nth-child(2) { animation-delay: .06s; } .rise:nth-child(3) { animation-delay: .12s; } .rise:nth-child(4) { animation-delay: .18s; } .rise:nth-child(5) { animation-delay: .24s; }
+@keyframes rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+h1 { font: 800 clamp(2.4rem, 6.5vw, 4.2rem)/.92 var(--f-display); text-transform: uppercase; margin: 0; letter-spacing: -.005em; text-wrap: balance; }
+.lede { margin: 0; color: var(--muted); max-width: 64ch; }
+form.search { display: flex; gap: 8px; flex-wrap: wrap; position: relative; }
+.search input { flex: 1 1 300px; min-width: 0; font: inherit; font-size: 1.1rem; padding: 14px 16px; border: 2px solid var(--ink); border-radius: 8px; background: var(--card); color: var(--ink); transition: box-shadow .2s var(--ease-out), transform .2s var(--ease-out); }
+.search input:focus { outline: none; box-shadow: 0 0 0 4px color-mix(in srgb, var(--tag) 55%, transparent); }
+.btn-big { font: 700 1.15rem/1 var(--f-display); letter-spacing: .05em; text-transform: uppercase; padding: 0 24px; min-height: 54px; border: 2px solid var(--btn-bg); border-radius: 8px; background: var(--btn-bg); color: var(--btn-fg); cursor: pointer; transition: transform .18s var(--ease-spring), box-shadow .2s; }
+.btn-big:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+.btn-big:active { transform: translateY(0) scale(.98); }
+.btn-big:disabled { opacity: .55; cursor: wait; transform: none; }
+.suggest { position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 5; list-style: none; margin: 0; padding: 6px; background: var(--card); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); transform-origin: top; animation: drop .18s var(--ease-out); }
+@keyframes drop { from { opacity: 0; transform: translateY(-4px) scaleY(.97); } }
+.suggest button { width: 100%; display: flex; justify-content: space-between; gap: 12px; font: inherit; text-align: left; background: none; border: 0; padding: 9px 10px; border-radius: 5px; color: var(--ink); cursor: pointer; }
+.suggest button:hover, .suggest button:focus-visible { background: var(--chip); }
+.free { font: 500 .72rem/1.6 var(--f-mono); text-transform: uppercase; letter-spacing: .06em; color: var(--good); white-space: nowrap; }
+.shelf { display: grid; gap: 8px; }
+.shelf h2 { font: 500 .78rem/1 var(--f-mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { display: inline-flex; align-items: baseline; gap: 8px; font: 500 .92rem/1 var(--f-body); padding: 9px 13px; border-radius: 999px; background: var(--chip); color: var(--ink); border: 1px solid transparent; cursor: pointer; transition: transform .2s var(--ease-spring), background .2s, border-color .2s; }
+.chip:hover { transform: translateY(-2px); border-color: var(--ink); }
+.chip .age { font: .74rem var(--f-mono); color: var(--muted); }
+.chip.example { background: transparent; border-color: var(--line); }
+
+/* status + skeletons */
+.status { border: 1px solid var(--line); background: var(--card); border-radius: 8px; padding: 18px; display: grid; gap: 8px; box-shadow: var(--shadow); }
+.status strong { font: 700 1.25rem/1.1 var(--f-display); text-transform: uppercase; letter-spacing: .02em; }
+.status p { margin: 0; color: var(--muted); }
+.status.error { border-color: var(--sale); }
+.status.error strong { color: var(--sale); }
+.steps { display: flex; flex-wrap: wrap; gap: 6px 18px; list-style: none; margin: 2px 0 0; padding: 0; font: .8rem var(--f-mono); color: var(--muted); }
+.steps li { display: flex; align-items: center; gap: 6px; transition: color .3s; }
+.steps li::before { content: ""; width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid currentColor; transition: background .3s, border-color .3s; }
+.steps li.on { color: var(--ink); }
+.steps li.on::before { background: var(--tag); border-color: var(--tag); animation: pulse 1.2s ease-in-out infinite; }
+.steps li.done::before { background: var(--good); border-color: var(--good); }
+@keyframes pulse { 50% { transform: scale(1.35); } }
+.bar { height: 4px; background: var(--chip); border-radius: 2px; overflow: hidden; }
+.bar i { display: block; height: 100%; width: 30%; background: var(--tag); border-radius: 2px; animation: slide 1.4s ease-in-out infinite; }
+@keyframes slide { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
+.sk { background: var(--card); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; display: grid; }
+.sk .band { height: 46px; background: var(--chip); }
+.sk .lines { padding: 16px; display: grid; gap: 10px; }
+.sk .ln { height: 12px; border-radius: 4px; background: linear-gradient(90deg, var(--chip) 0%, color-mix(in srgb, var(--chip) 40%, var(--card)) 50%, var(--chip) 100%); background-size: 200% 100%; animation: shimmer 1.3s linear infinite; }
+.sk .ln.big { height: 28px; width: 45%; } .sk .ln.w80 { width: 80%; } .sk .ln.w60 { width: 60%; }
+@keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+
+/* results header */
+.results { display: grid; gap: 22px; scroll-margin-top: 16px; }
+.rhead { display: flex; flex-wrap: wrap; gap: 14px 24px; align-items: end; justify-content: space-between; border-bottom: 2px solid var(--ink); padding-bottom: 12px; }
+.rhead h2 { font: 800 clamp(1.7rem, 3.6vw, 2.4rem)/1 var(--f-display); text-transform: uppercase; margin: 0; text-wrap: balance; }
+.rmeta { margin: 6px 0 0; color: var(--muted); font-size: .92rem; display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
+.summary { margin: 0; font-size: 1.08rem; max-width: 72ch; }
+.controls { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; }
+.controls label { display: grid; gap: 3px; font: 500 .72rem/1.2 var(--f-mono); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+select { font: inherit; font-size: .92rem; padding: 7px 10px; border: 1px solid var(--line); border-radius: 5px; background: var(--card); color: var(--ink); }
+.seg { display: inline-flex; background: var(--chip); border-radius: 8px; padding: 3px; position: relative; }
+.seg button { position: relative; z-index: 1; font: 600 .88rem/1 var(--f-body); border: 0; background: none; color: var(--muted); padding: 9px 14px; border-radius: 6px; cursor: pointer; transition: color .2s; }
+.seg button[aria-pressed="true"] { color: var(--ink); }
+.seg .thumb { position: absolute; z-index: 0; top: 3px; bottom: 3px; border-radius: 6px; background: var(--card); box-shadow: var(--shadow); transition: left .32s var(--ease-spring), width .32s var(--ease-spring); }
+.btn { display: inline-flex; align-items: center; gap: 6px; font: 600 .86rem/1 var(--f-body); padding: 8px 11px; border: 1px solid var(--line); border-radius: 5px; color: var(--ink); background: transparent; text-decoration: none; cursor: pointer; transition: background .2s, transform .18s var(--ease-spring); }
+.btn:hover { background: var(--chip); transform: translateY(-1px); }
+.btn.primary { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+
+/* where it's cheapest */
+.board { display: grid; gap: 10px; }
+.board h3, .receipt h3, .tips h3 { font: 700 1.05rem/1 var(--f-display); text-transform: uppercase; letter-spacing: .08em; margin: 0; }
+.board p { margin: 0; color: var(--muted); font-size: .92rem; }
+.wins { display: grid; gap: 6px; max-width: 560px; }
+.win { display: grid; grid-template-columns: 9rem 1fr auto; gap: 10px; align-items: center; font: .86rem var(--f-mono); }
+.win .track, .win .fill { display: block; }
+.win .track { height: 10px; background: var(--chip); border-radius: 5px; overflow: hidden; }
+.win .fill { height: 100%; background: var(--good); border-radius: 5px; transform-origin: left; transform: scaleX(var(--w, 0)); transition: transform .8s var(--ease-out); }
+.win .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* deal cards: hang tags */
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 16px; align-items: start; }
+.tag { background: var(--card); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; min-width: 0;
+  transform-origin: 22px 22px; transition: transform .45s var(--ease-spring), box-shadow .3s var(--ease-out); }
+.tag:hover { transform: rotate(-.8deg) translateY(-3px); box-shadow: var(--shadow); }
+.tag-top { background: var(--tag); color: var(--tag-ink); padding: 10px 16px 10px 36px; display: flex; align-items: baseline; gap: 10px; position: relative; }
+.tag-top::before { content: ""; position: absolute; left: 14px; top: 50%; width: 10px; height: 10px; margin-top: -5px; border-radius: 50%; background: var(--paper); box-shadow: inset 0 0 0 1.5px rgb(0 0 0 / .22); }
+.tag-top.plain { background: var(--chip); color: var(--ink); }
+.off { font: 800 1.7rem/1 var(--f-display); font-variant-numeric: tabular-nums; min-width: 3.2ch; }
+.save { font: 500 .8rem/1.2 var(--f-mono); }
+.tag-body { padding: 14px 16px; display: grid; gap: 10px; }
+.brand { font: 500 .72rem/1 var(--f-mono); text-transform: uppercase; letter-spacing: .07em; color: var(--muted); margin: 0; }
+.tag h3 { font: 700 1.28rem/1.15 var(--f-display); margin: 0; text-wrap: balance; overflow-wrap: anywhere; }
+.why { margin: 0; color: var(--muted); font-size: .94rem; }
+.price { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.now { font: 800 2.3rem/1 var(--f-display); font-variant-numeric: tabular-nums; }
+.was { font: .95rem var(--f-mono); color: var(--muted); }
+.stores { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font: .86rem/1.35 var(--f-mono); }
+.srow { display: flex; align-items: baseline; gap: 8px; }
+.srow a, .srow span.name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 60%; }
+.lead { flex: 1; border-bottom: 1px dotted var(--muted); transform: translateY(-4px); min-width: 10px; }
+.sp { font-variant-numeric: tabular-nums; }
+.lowest { font: 600 .66rem/1 var(--f-mono); text-transform: uppercase; letter-spacing: .06em; color: var(--good); }
+.snote { color: var(--muted); font-size: .78rem; padding-left: 2px; }
+.code { display: inline-flex; align-items: center; gap: 8px; font: 500 .85rem var(--f-mono); border: 1.5px dashed var(--ink); border-radius: 5px; padding: 4px 4px 4px 10px; width: fit-content; }
+.code button { font: 600 .75rem var(--f-body); border: 0; border-radius: 3px; background: var(--tag); color: var(--tag-ink); padding: 4px 8px; cursor: pointer; transition: transform .18s var(--ease-spring); }
+.code button:active { transform: scale(.92); }
+.ends { font: 600 .78rem var(--f-mono); color: var(--sale); }
+.tag-foot { margin-top: auto; padding: 12px 16px 14px; border-top: 1px dashed var(--line); display: grid; gap: 10px; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.src { margin: 0; font-size: .8rem; color: var(--muted); overflow-wrap: anywhere; }
+
+/* compare table */
+.cmp-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--card); }
+table.cmp { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 640px; font-size: .92rem; }
+.cmp th, .cmp td { padding: 12px 14px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.cmp thead th { font: 600 .74rem/1.2 var(--f-mono); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); background: var(--card); position: sticky; top: 0; }
+.cmp th.prod, .cmp td.prod { text-align: left; white-space: normal; min-width: 220px; position: sticky; left: 0; background: var(--card); z-index: 1; }
+.cmp td.prod strong { display: block; font: 700 1.05rem/1.2 var(--f-display); }
+.cmp td.prod span { font: .72rem var(--f-mono); color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+.cmp td { font-family: var(--f-mono); font-variant-numeric: tabular-nums; transition: background .25s; }
+.cmp tbody tr:hover td { background: color-mix(in srgb, var(--chip) 60%, var(--card)); }
+.cmp td a { text-decoration: none; border-bottom: 1px solid var(--line); }
+.cmp td.best { background: var(--good-bg); }
+.cmp td.best a { font-weight: 600; color: var(--good); border-color: currentColor; }
+.cmp td.best small { display: block; font: 600 .62rem/1 var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--good); margin-top: 3px; }
+.cmp td.missing a { color: var(--muted); font-size: .8rem; border-bottom-style: dotted; }
+.cmp td.reg { color: var(--muted); }
+.cmp tbody tr:last-child td { border-bottom: 0; }
+
+.receipt { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 16px 18px; display: grid; gap: 12px; }
+.rlist { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr)); gap: 14px 28px; font-family: var(--f-mono); font-size: .86rem; }
+.rlist li { display: grid; gap: 3px; min-width: 0; }
+.rlist .srow a { font-weight: 500; }
+.rlist .offer { font-family: var(--f-body); font-size: .95rem; }
+.tips ul { margin: 8px 0 0; padding-left: 20px; display: grid; gap: 6px; max-width: 72ch; }
+.fine { color: var(--muted); font-size: .85rem; margin: 0; max-width: 72ch; }
+.empty { color: var(--muted); }
+
+/* gate */
+.gate { max-width: 480px; display: grid; gap: 14px; padding-top: 6vh; }
+.gate form { display: flex; gap: 8px; flex-wrap: wrap; }
+.gate input { flex: 1 1 220px; min-width: 0; font: 500 1.1rem var(--f-mono); padding: 12px 14px; border: 2px solid var(--ink); border-radius: 8px; background: var(--card); color: var(--ink); }
+.gate input:focus { outline: none; box-shadow: 0 0 0 4px color-mix(in srgb, var(--tag) 55%, transparent); }
+.err { color: var(--sale); margin: 0; min-height: 1.5em; }
+.shake { animation: shake .4s var(--ease-out); }
+@keyframes shake { 20% { transform: translateX(-6px); } 40% { transform: translateX(5px); } 60% { transform: translateX(-3px); } 80% { transform: translateX(2px); } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <span class="logo"><span class="logo-tag" aria-hidden="true"></span>Accio</span>
+    <div class="who" id="who" hidden>
+      <span id="hello"></span>
+      <span class="meter" id="meter"></span>
+      <button class="linkbtn" id="switch" type="button">Use a different code</button>
+    </div>
+  </header>
+
+  <!-- invite code -->
+  <section class="gate" id="gate" hidden>
+    <h1 class="rise">Black Friday, summoned.</h1>
+    <p class="lede rise">Type what you're shopping for and get this week's best deals, with each store's price side by side. Enter the invite code you were sent.</p>
+    <form id="gate-form" class="rise" autocomplete="off">
+      <input id="code" name="code" aria-label="Invite code" placeholder="maya-7Q4KXR" required spellcheck="false" autocapitalize="off">
+      <button class="btn-big" type="submit">Enter</button>
+    </form>
+    <p class="err" id="gate-error" role="alert"></p>
+  </section>
+
+  <!-- app -->
+  <main id="app" hidden>
+    <div class="stack">
+      <section class="hero">
+        <h1 class="rise">What should we summon?</h1>
+        <p class="lede rise">Claude reads this week's Black Friday roundups and lists the best deals, with each store's price side by side. A new search takes about a minute. Anything someone already searched opens instantly, for free.</p>
+        <form class="search rise" id="search-form" autocomplete="off">
+          <input id="q" name="q" maxlength="80" aria-label="Product to search for" placeholder="walking shoes, air fryer under $100, OLED TV" aria-autocomplete="list" aria-controls="suggest">
+          <button class="btn-big" id="go" type="submit">Find deals</button>
+          <ul class="suggest" id="suggest" role="listbox" hidden></ul>
+        </form>
+        <div class="shelf rise" id="recent-shelf" hidden>
+          <h2>Already searched · free to open</h2>
+          <div class="chips" id="recent"></div>
+        </div>
+        <div class="shelf rise">
+          <h2>Try</h2>
+          <div class="chips" id="examples"></div>
+        </div>
+      </section>
+
+      <section id="status" class="status" hidden aria-live="polite"></section>
+      <section id="results" class="results" hidden></section>
+    </div>
+  </main>
+</div>
+
+<script>
+"use strict";
+/* Open-source motion: Motion (MIT, motion.dev) for entrances and count-ups,
+   AutoAnimate (MIT, auto-animate.formkit.com) for smooth re-sorting,
+   and the browser's View Transitions API for switching views. All optional:
+   the page works the same if they don't load. */
+const REDUCE = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const fx = { animate: null, autoAnimate: null };
+const fxReady = REDUCE ? Promise.resolve() : Promise.allSettled([
+  import("https://cdn.jsdelivr.net/npm/motion@14.12.0/+esm").then((m) => { fx.animate = m.animate; }),
+  import("https://cdn.jsdelivr.net/npm/@formkit/auto-animate@0.10.2/+esm").then((m) => { fx.autoAnimate = m.default || m.autoAnimate; }),
+]);
+function withTransition(update) {
+  if (!REDUCE && document.startViewTransition && !document.hidden) {
+    const t = document.startViewTransition(update);
+    t.ready.catch(() => {});                 // aborted transitions (e.g. tab in background) are harmless
+    t.updateCallbackDone.catch(() => {});
+    return t.finished.catch(() => {});
+  }
+  update(); return Promise.resolve();
+}
+function enter(elements, { y = 16, rotate = -1.2, gap = 0.045 } = {}) {
+  if (!fx.animate || REDUCE) return;
+  [...elements].forEach((el, i) => {
+    try {
+      fx.animate(el, { opacity: [0, 1], transform: [`translateY(${y}px) rotate(${rotate}deg)`, "translateY(0px) rotate(0deg)"] },
+        { duration: 0.5, delay: Math.min(i, 12) * gap, ease: [0.22, 1, 0.36, 1] });
+    } catch {}
+  });
+}
+function countUp(el, to, format) {
+  if (!fx.animate || REDUCE) { el.textContent = format(to); return; }
+  try { fx.animate(0, to, { duration: 0.9, ease: [0.22, 1, 0.36, 1], onUpdate: (v) => { el.textContent = format(v); } }); }
+  catch { el.textContent = format(to); }
+}
+
+const STORAGE_KEY = "accio-code";
+const EXAMPLES = ["walking shoes", "air fryer", "kitchen utensils", "home decor", "OLED TV", "AirPods", "robot vacuum", "espresso machine"];
+const STORE_SEARCH = {
+  "amazon": "https://www.amazon.com/s?k=",
+  "walmart": "https://www.walmart.com/search?q=",
+  "target": "https://www.target.com/s?searchTerm=",
+  "best buy": "https://www.bestbuy.com/site/searchpage.jsp?st=",
+  "bestbuy": "https://www.bestbuy.com/site/searchpage.jsp?st=",
+  "wayfair": "https://www.wayfair.com/keyword.php?keyword=",
+  "costco": "https://www.costco.com/CatalogSearch?keyword=",
+  "kohl s": "https://www.kohls.com/search.jsp?search=",
+  "kohls": "https://www.kohls.com/search.jsp?search=",
+  "home depot": "https://www.homedepot.com/s/",
+  "rei": "https://www.rei.com/search?q=",
+  "zappos": "https://www.zappos.com/search?term=",
+};
+const STEPS = ["Finding roundups", "Reading deal pages", "Comparing stores", "Writing it up"];
+
+const state = { code: null, recent: [], current: null, sort: "best", view: "cards" };
+const $ = (s) => document.querySelector(s);
+
+function h(tag, attrs, ...kids) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v == null || v === false) continue;
+    if (k === "class") el.className = v;
+    else if (k === "style") el.setAttribute("style", v);
+    else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+    else el.setAttribute(k, v === true ? "" : String(v));
+  }
+  for (const kid of kids.flat()) {
+    if (kid == null || kid === false) continue;
+    el.append(kid instanceof Node ? kid : document.createTextNode(String(kid)));
+  }
+  return el;
+}
+const money = (n) => n.toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 });
+const safeUrl = (u) => (typeof u === "string" && u.startsWith("https://") ? u : null);
+const enc = encodeURIComponent;
+const ago = (m) => (m < 1 ? "just now" : m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`);
+const ext = { target: "_blank", rel: "noopener noreferrer" };
+const local = { get() { try { return localStorage.getItem(STORAGE_KEY); } catch { return null; } },
+  set(v) { try { v ? localStorage.setItem(STORAGE_KEY, v) : localStorage.removeItem(STORAGE_KEY); } catch {} } };
+
+class ApiError extends Error { constructor(status, message) { super(message); this.status = status; } }
+async function api(path, options = {}) {
+  const res = await fetch(path, {
+    method: options.method || "GET",
+    headers: { "Content-Type": "application/json", "X-Access-Code": state.code || "" },
+    body: options.body ? JSON.stringify(options.body) : undefined,
+  });
+  let data = null;
+  try { data = await res.json(); } catch {}
+  if (!res.ok) {
+    const msg = data && typeof data.detail === "string" ? data.detail : "Something went wrong. Try again.";
+    if (res.status === 401 && state.code) signOut(msg);
+    throw new ApiError(res.status, msg);
+  }
+  return data;
+}
+
+/* ---------- access ---------- */
+function signOut(message) {
+  state.code = null; local.set(null);
+  withTransition(() => {
+    $("#app").hidden = true; $("#who").hidden = true; $("#gate").hidden = false;
+    $("#gate-error").textContent = message || "";
+  });
+  setTimeout(() => $("#code").focus(), 50);
+}
+async function signIn(code) {
+  state.code = code.trim();
+  let me;
+  try { me = await api("/api/me"); } catch (e) { state.code = null; throw e; }
+  local.set(state.code);
+  await withTransition(() => {
+    $("#gate").hidden = true; $("#app").hidden = false; $("#who").hidden = false;
+    $("#hello").textContent = `Hi, ${me.name}`;
+    showBudget(me.budget);
+  });
+  loadRecent();
+}
+let shownRemaining = null;
+function showBudget(b) {
+  if (!b) return;
+  const meter = $("#meter");
+  if (!b.can_search) {
+    meter.textContent = b.remaining <= 0.1 ? "Today's budget is used up · saved searches still free" : "Site limit reached · saved searches still free";
+    return;
+  }
+  const from = shownRemaining ?? b.remaining;
+  shownRemaining = b.remaining;
+  const fmt = (v) => `${money(Math.round(v * 100) / 100)} left today for new searches`;
+  if (fx.animate && from !== b.remaining && !REDUCE) {
+    try { fx.animate(from, b.remaining, { duration: 0.8, onUpdate: (v) => { meter.textContent = fmt(v); } }); return; } catch {}
+  }
+  meter.textContent = fmt(b.remaining);
+}
+
+/* ---------- recent + suggestions ---------- */
+async function loadRecent() {
+  try { state.recent = (await api("/api/recent")).searches; } catch { state.recent = []; }
+  const box = $("#recent");
+  box.replaceChildren(...state.recent.slice(0, 14).map((r) =>
+    h("button", { class: "chip", type: "button", onclick: () => openSaved(r) }, r.query, h("span", { class: "age" }, ago(r.age_minutes)))));
+  const shelf = $("#recent-shelf");
+  const wasHidden = shelf.hidden;
+  shelf.hidden = state.recent.length === 0;
+  if (wasHidden && !shelf.hidden) enter(box.children, { y: 8, rotate: 0, gap: 0.03 });
+}
+const words = (s) => s.toLowerCase().match(/[a-z0-9]+/g) || [];
+function suggestions(text) {
+  const typed = words(text).filter((w) => w.length > 1);
+  if (!typed.length) return [];
+  return state.recent.filter((r) => {
+    const rw = words(r.query);
+    return typed.every((t) => rw.some((w) => w.startsWith(t) || t.startsWith(w)));
+  }).slice(0, 6);
+}
+function renderSuggest() {
+  const list = $("#suggest");
+  const hits = suggestions($("#q").value);
+  list.replaceChildren(...hits.map((r) => h("li", { role: "option" },
+    h("button", { type: "button", onclick: () => { list.hidden = true; openSaved(r); } },
+      h("span", null, r.query), h("span", { class: "free" }, `Saved ${ago(r.age_minutes)} · free`)))));
+  list.hidden = hits.length === 0;
+}
+
+/* ---------- searching ---------- */
+let pollTimer = null, tickTimer = null;
+function stopTimers() { clearTimeout(pollTimer); clearInterval(tickTimer); }
+
+function showError(title, detail) {
+  stopTimers();
+  $("#go").disabled = false;
+  const box = $("#status");
+  box.className = "status error";
+  box.replaceChildren(h("strong", null, title), h("p", null, detail));
+  box.hidden = false;
+  if ($("#results").dataset.loading) { $("#results").hidden = true; delete $("#results").dataset.loading; }
+}
+
+function showSkeleton() {
+  const res = $("#results");
+  res.dataset.loading = "1";
+  res.replaceChildren(h("div", { class: "grid" }, Array.from({ length: 6 }, () =>
+    h("div", { class: "sk", "aria-hidden": "true" }, h("div", { class: "band" }),
+      h("div", { class: "lines" }, h("div", { class: "ln w60" }), h("div", { class: "ln w80" }), h("div", { class: "ln big" }), h("div", { class: "ln" }), h("div", { class: "ln w80" }))))));
+  res.hidden = false;
+  enter(res.querySelectorAll(".sk"), { y: 10, rotate: 0, gap: 0.05 });
+}
+
+function showRunning(query, note, seconds) {
+  const box = $("#status");
+  box.className = "status";
+  const step = Math.min(STEPS.length - 1, Math.floor(seconds / 18));
+  box.replaceChildren(
+    h("strong", null, `Checking prices for “${query}”`),
+    h("p", null, `${note} ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`),
+    h("ul", { class: "steps" }, STEPS.map((s, i) => h("li", { class: i < step ? "done" : i === step ? "on" : "" }, s))),
+    h("div", { class: "bar" }, h("i")));
+  box.hidden = false;
+}
+
+async function openSaved(r) {
+  $("#q").value = r.query;
+  $("#suggest").hidden = true;
+  stopTimers();
+  try { await render(await api(`/api/results/${enc(r.key)}`)); }
+  catch (e) { showError("Couldn't open that search", e.message); loadRecent(); }
+}
+
+async function runSearch(query, refresh = false) {
+  stopTimers();
+  $("#suggest").hidden = true;
+  $("#go").disabled = true;
+  $("#status").hidden = true;
+  try {
+    const r = await api("/api/search", { method: "POST", body: { query, refresh } });
+    showBudget(r.budget);
+    if (r.status === "done") { await render(r); return; }
+    showSkeleton();
+    follow(r.job_id, query, r.shared, Date.now() - (r.seconds || 0) * 1000);
+  } catch (e) { showError("Search didn't start", e.message); }
+}
+
+function follow(jobId, query, shared, startedAt) {
+  const note = shared
+    ? "Someone else is already searching this. You'll get their result for free."
+    : "Claude is reading this week's deal roundups. This usually takes 30–90 seconds.";
+  const tick = () => showRunning(query, note, Math.round((Date.now() - startedAt) / 1000));
+  tick(); tickTimer = setInterval(tick, 1000);
+  const poll = async () => {
+    try {
+      const j = await api(`/api/jobs/${enc(jobId)}`);
+      showBudget(j.budget);
+      if (j.status === "done") { stopTimers(); await render(j); loadRecent(); return; }
+      if (j.status === "error") { showError("That search didn't work", j.error); return; }
+    } catch (e) {
+      if (e.status === 404) { showError("Search lost", e.message); return; }
+    }
+    if (Date.now() - startedAt > 6 * 60 * 1000) { showError("This is taking too long", "Try again in a few minutes."); return; }
+    pollTimer = setTimeout(poll, 2500);
+  };
+  pollTimer = setTimeout(poll, 2500);
+}
+
+/* ---------- price helpers ---------- */
+const lowPrice = (d) => { const ps = d.offers.map((o) => o.price).filter((p) => typeof p === "number"); return ps.length ? Math.min(...ps) : null; };
+const pctOff = (d) => { const low = lowPrice(d); return d.regular_price && low != null && d.regular_price > low ? Math.round((1 - low / d.regular_price) * 100) : null; };
+const storeKey = (name) => name.toLowerCase().replace(/\.com\b/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+function storeLink(name, product) {
+  const key = storeKey(name);
+  const base = STORE_SEARCH[key] || Object.entries(STORE_SEARCH).find(([k]) => key.includes(k))?.[1];
+  return base ? base + enc(product) : `https://www.google.com/search?q=${enc(name + " " + product)}`;
+}
+function sorted(deals) {
+  const list = deals.map((d, i) => ({ d, i }));
+  if (state.sort === "pct") list.sort((a, b) => (pctOff(b.d) ?? -1) - (pctOff(a.d) ?? -1) || a.i - b.i);
+  if (state.sort === "price") list.sort((a, b) => (lowPrice(a.d) ?? 1e12) - (lowPrice(b.d) ?? 1e12) || a.i - b.i);
+  return list;
+}
+
+/* Which stores show up, and who has the lowest price when a product is listed at two or more. */
+function comparison(deals) {
+  const stores = new Map();
+  for (const d of deals) for (const o of d.offers) {
+    const k = storeKey(o.store);
+    if (!stores.has(k)) stores.set(k, { key: k, name: o.store, count: 0, wins: 0 });
+    stores.get(k).count++;
+  }
+  let contested = 0;
+  for (const d of deals) {
+    const priced = d.offers.filter((o) => typeof o.price === "number");
+    if (new Set(priced.map((o) => storeKey(o.store))).size < 2) continue;
+    contested++;
+    const low = Math.min(...priced.map((o) => o.price));
+    for (const k of new Set(priced.filter((o) => o.price === low).map((o) => storeKey(o.store)))) stores.get(k).wins++;
+  }
+  const columns = [...stores.values()].sort((a, b) => b.count - a.count || b.wins - a.wins).slice(0, 7);
+  return { columns, contested, ranked: [...stores.values()].filter((s) => s.wins).sort((a, b) => b.wins - a.wins) };
+}
+
+/* ---------- pieces ---------- */
+function copyButton(code) {
+  const btn = h("button", { type: "button" }, "Copy");
+  const text = h("span", null, code);
+  btn.addEventListener("click", () => {
+    navigator.clipboard.writeText(code).then(() => { btn.textContent = "Copied"; setTimeout(() => { btn.textContent = "Copy"; }, 1600); }).catch(() => {
+      const r = document.createRange(); r.selectNodeContents(text); const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+    });
+  });
+  return h("span", { class: "code" }, "CODE ", text, btn);
+}
+
+function card(d) {
+  const low = lowPrice(d), pct = pctOff(d);
+  const offEl = h("span", { class: "off" }, pct != null ? `−${pct}%` : "Deal");
+  if (pct != null) offEl.dataset.pct = pct;
+  const top = pct != null
+    ? h("div", { class: "tag-top" }, offEl, h("span", { class: "save" }, `Save ${money(d.regular_price - low)}`))
+    : h("div", { class: "tag-top plain" }, offEl, h("span", { class: "save" }, d.regular_price ? `List ${money(d.regular_price)}` : "Regular price not given"));
+  const offers = [...d.offers].sort((a, b) => (a.price ?? 1e12) - (b.price ?? 1e12));
+  const priced = offers.filter((o) => typeof o.price === "number").length;
+  const best = offers.find((o) => o.price === low) || offers[0];
+  const sourceUrl = safeUrl(d.source_url);
+  return h("article", { class: "tag" }, top,
+    h("div", { class: "tag-body" },
+      d.brand ? h("p", { class: "brand" }, d.brand) : null,
+      h("h3", null, d.product),
+      d.why ? h("p", { class: "why" }, d.why) : null,
+      low != null ? h("div", { class: "price" }, h("span", { class: "now" }, money(low)), d.regular_price && d.regular_price > low ? h("s", { class: "was" }, money(d.regular_price)) : null) : null,
+      offers.length ? h("ul", { class: "stores" }, offers.map((o) => h("li", null,
+        h("div", { class: "srow" },
+          h("a", { href: safeUrl(o.url) || storeLink(o.store, d.product), ...ext }, o.store),
+          h("span", { class: "lead" }),
+          h("span", { class: "sp" }, typeof o.price === "number" ? money(o.price) : "see site"),
+          priced > 1 && o.price === low ? h("span", { class: "lowest" }, "lowest") : null),
+        o.note ? h("div", { class: "snote" }, o.note) : null))) : null,
+      d.promo_code ? copyButton(d.promo_code) : null,
+      d.ends ? h("span", { class: "ends" }, `Ends ${d.ends}`) : null),
+    h("div", { class: "tag-foot" },
+      h("div", { class: "actions" },
+        best ? h("a", { class: "btn primary", href: safeUrl(best.url) || storeLink(best.store, d.product), ...ext }, `Open at ${best.store}`) : null,
+        h("a", { class: "btn", href: `https://www.google.com/search?tbm=shop&q=${enc(d.product)}`, ...ext }, "More stores"),
+        offers.some((o) => /amazon/i.test(o.store)) ? h("a", { class: "btn", href: `https://camelcamelcamel.com/search?sq=${enc(d.product)}`, ...ext }, "Price history") : null),
+      h("p", { class: "src" }, "Reported by ", sourceUrl ? h("a", { href: sourceUrl, ...ext }, d.source_title) : d.source_title, d.source_date ? ` · ${d.source_date}` : "")));
+}
+
+function compareTable(deals, cmp) {
+  const head = h("tr", null, h("th", { class: "prod", scope: "col" }, "Product"), h("th", { scope: "col" }, "Regular"),
+    cmp.columns.map((c) => h("th", { scope: "col" }, c.name)));
+  const rows = sorted(deals).map(({ d }) => {
+    const byStore = new Map(d.offers.map((o) => [storeKey(o.store), o]));
+    const priced = d.offers.filter((o) => typeof o.price === "number");
+    const low = lowPrice(d);
+    const contested = new Set(priced.map((o) => storeKey(o.store))).size > 1;
+    return h("tr", null,
+      h("td", { class: "prod" }, h("strong", null, d.product), d.brand ? h("span", null, d.brand) : null),
+      h("td", { class: "reg" }, d.regular_price ? money(d.regular_price) : "—"),
+      cmp.columns.map((c) => {
+        const o = byStore.get(c.key);
+        if (!o) return h("td", { class: "missing" }, h("a", { href: storeLink(c.name, d.product), ...ext, title: `Search ${c.name} for this` }, "check ↗"));
+        const isBest = contested && o.price === low;
+        return h("td", { class: isBest ? "best" : "" },
+          h("a", { href: safeUrl(o.url) || storeLink(o.store, d.product), ...ext }, typeof o.price === "number" ? money(o.price) : "see site"),
+          isBest ? h("small", null, "lowest") : null);
+      }));
+  });
+  const tbody = h("tbody", null, rows);
+  return { el: h("div", { class: "cmp-wrap" }, h("table", { class: "cmp" }, h("thead", null, head), tbody)), body: tbody };
+}
+
+function board(cmp) {
+  if (cmp.contested === 0 || !cmp.ranked.length) {
+    return h("section", { class: "board" }, h("h3", null, "Where it's cheapest"),
+      h("p", null, "Most of these deals were reported at one store only. Use “check ↗” in the store comparison to look the product up elsewhere."));
+  }
+  const max = Math.max(...cmp.ranked.map((s) => s.wins));
+  const el = h("section", { class: "board" }, h("h3", null, "Where it's cheapest"),
+    h("p", null, `${cmp.contested} of these products were listed at two or more stores. Lowest price most often:`),
+    h("div", { class: "wins" }, cmp.ranked.slice(0, 5).map((s) => h("div", { class: "win" },
+      h("span", { class: "name" }, s.name), h("span", { class: "track" }, h("span", { class: "fill", style: `--w:0`, "data-w": (s.wins / max).toFixed(3) })),
+      h("span", null, `${s.wins} of ${cmp.contested}`)))));
+  return el;
+}
+
+function receipt(sales) {
+  if (!sales.length) return null;
+  return h("section", { class: "receipt" }, h("h3", null, "Store-wide sales"),
+    h("ul", { class: "rlist" }, sales.map((s) => h("li", null,
+      h("div", { class: "srow" },
+        safeUrl(s.source_url) ? h("a", { href: s.source_url, ...ext }, s.store) : h("span", { class: "name" }, s.store),
+        h("span", { class: "lead" }), h("span", null, s.ends ? `ends ${s.ends}` : "")),
+      h("div", { class: "offer" }, s.offer),
+      s.promo_code ? copyButton(s.promo_code) : null))));
+}
+
+function segmented(options, current, onPick) {
+  const wrap = h("div", { class: "seg", role: "group", "aria-label": "View" });
+  const thumb = h("span", { class: "thumb", "aria-hidden": "true" });
+  wrap.append(thumb);
+  const buttons = options.map(([value, label]) => h("button", { type: "button", "aria-pressed": String(value === current), onclick: () => onPick(value) }, label));
+  wrap.append(...buttons);
+  requestAnimationFrame(() => {
+    const b = buttons.find((x) => x.getAttribute("aria-pressed") === "true");
+    if (b) { thumb.style.left = b.offsetLeft + "px"; thumb.style.width = b.offsetWidth + "px"; }
+  });
+  return { el: wrap, move(value) {
+    buttons.forEach((b, i) => b.setAttribute("aria-pressed", String(options[i][0] === value)));
+    const b = buttons[options.findIndex((o) => o[0] === value)];
+    thumb.style.left = b.offsetLeft + "px"; thumb.style.width = b.offsetWidth + "px";
+  } };
+}
+
+/* ---------- results ---------- */
+let live = null; // nodes the sort and view controls update in place
+
+async function render(r) {
+  await fxReady;
+  state.current = r;
+  stopTimers();
+  $("#go").disabled = false;
+  const res = r.result || { summary: "", deals: [], store_sales: [], tips: [] };
+  const cmp = comparison(res.deals);
+
+  const meta = r.cached
+    ? [h("span", { class: "free" }, "Saved search · free"), `Prices checked ${ago(r.age_minutes)}`]
+    : [r.cost ? `New search · used ${money(r.cost)} of your budget` : "New search · paid by whoever started it"];
+  const sortSel = h("select", { id: "sort", onchange: (e) => { state.sort = e.target.value; resort(); } },
+    h("option", { value: "best" }, "Best deals first"), h("option", { value: "pct" }, "Biggest % off"), h("option", { value: "price" }, "Lowest price"));
+  sortSel.value = state.sort;
+  const seg = segmented([["cards", "Deal cards"], ["compare", "Compare stores"]], state.view, (v) => switchView(v));
+  const refresh = r.cached && r.age_minutes >= 60
+    ? h("button", { class: "btn", type: "button", onclick: () => runSearch(r.query, true) }, "Recheck prices (uses budget)") : null;
+
+  const cards = new Map(res.deals.map((d, i) => [i, card(d)]));
+  const grid = h("div", { class: "grid" }, sorted(res.deals).map(({ i }) => cards.get(i)));
+  const table = compareTable(res.deals, cmp);
+  const boardEl = board(cmp);
+  const cardsView = h("div", { class: "stack", style: "gap:22px" }, boardEl, grid);
+  const compareView = h("div", { class: "stack", style: "gap:22px" }, table.el);
+  cardsView.hidden = state.view !== "cards";
+  compareView.hidden = state.view !== "compare";
+  live = { res, cards, grid, table, cmp, seg, cardsView, compareView };
+
+  const box = $("#results");
+  await withTransition(() => {
+    $("#status").hidden = true;
+    delete box.dataset.loading;
+    box.replaceChildren(...[
+      h("div", { class: "rhead" },
+        h("div", null, h("h2", null, r.query), h("p", { class: "rmeta" }, meta)),
+        h("div", { class: "controls" }, seg.el, h("label", null, "Sort", sortSel), refresh)),
+      res.summary ? h("p", { class: "summary" }, res.summary) : null,
+      res.deals.length ? [cardsView, compareView]
+        : h("p", { class: "empty" }, "No reliable deals turned up for this. Try a broader search, like the product type instead of a model."),
+      receipt(res.store_sales),
+      res.tips.length ? h("section", { class: "tips" }, h("h3", null, "Before you buy"), h("ul", null, res.tips.map((t) => h("li", null, t)))) : null,
+      h("p", { class: "fine" }, "Prices come from deal articles and store pages Claude read this week. They change fast on Black Friday, so check the price at checkout. Store links are plain links: nobody earns a commission."),
+    ].flat().filter(Boolean));
+    box.hidden = false;
+  });
+
+  if (fx.autoAnimate) { try { fx.autoAnimate(grid, { duration: 320 }); fx.autoAnimate(table.body, { duration: 320 }); } catch {} }
+  enter(grid.children);
+  grid.querySelectorAll(".off[data-pct]").forEach((el) => countUp(el, Number(el.dataset.pct), (v) => `−${Math.round(v)}%`));
+  requestAnimationFrame(() => boardEl.querySelectorAll(".fill").forEach((f) => { f.style.setProperty("--w", f.dataset.w); }));
+  box.scrollIntoView({ behavior: REDUCE ? "auto" : "smooth", block: "start" });
+}
+
+function resort() {
+  if (!live) return;
+  const order = sorted(live.res.deals);
+  live.grid.append(...order.map(({ i }) => live.cards.get(i)));          // AutoAnimate slides cards into place
+  const fresh = compareTable(live.res.deals, live.cmp);                     // rebuild rows in the new order
+  live.table.body.replaceChildren(...fresh.body.children);
+}
+
+function switchView(view) {
+  if (!live || view === state.view) return;
+  state.view = view;
+  live.seg.move(view);
+  withTransition(() => { live.cardsView.hidden = view !== "cards"; live.compareView.hidden = view !== "compare"; }).then(() => {
+    if (view === "cards") enter(live.grid.children, { y: 10, rotate: -0.6, gap: 0.03 });
+    else enter(live.table.body.children, { y: 8, rotate: 0, gap: 0.03 });
+  });
+}
+
+/* ---------- wiring ---------- */
+$("#gate-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  $("#gate-error").textContent = "";
+  try { await signIn($("#code").value); }
+  catch (err) {
+    $("#gate-error").textContent = err.message;
+    const form = $("#gate-form"); form.classList.remove("shake"); void form.offsetWidth; form.classList.add("shake");
+  }
+});
+$("#switch").addEventListener("click", () => signOut(""));
+$("#search-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const q = $("#q").value.trim();
+  if (q.length < 2) { $("#q").focus(); return; }
+  runSearch(q);
+});
+$("#q").addEventListener("input", renderSuggest);
+$("#q").addEventListener("keydown", (e) => { if (e.key === "Escape") $("#suggest").hidden = true; });
+document.addEventListener("click", (e) => { if (!e.target.closest("#search-form")) $("#suggest").hidden = true; });
+$("#examples").append(...EXAMPLES.map((ex) => h("button", { class: "chip example", type: "button", onclick: () => {
+  const saved = state.recent.find((r) => r.query.toLowerCase() === ex.toLowerCase());
+  if (saved) openSaved(saved); else { $("#q").value = ex; runSearch(ex); }
+} }, ex)));
+
+(async () => {
+  const saved = local.get();
+  if (!saved) { signOut(""); return; }
+  try { await signIn(saved); } catch (e) { signOut(e.status === 401 ? "" : e.message); }
+})();
+</script>
+</body>
+</html>

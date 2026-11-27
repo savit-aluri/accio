@@ -1,0 +1,14 @@
+# Copy this file to friends.toml (or run: python manage.py add-friend NAME).
+# friends.toml holds everyone's invite codes, so keep it private.
+
+[limits]
+daily_cap_per_friend = 1.00   # dollars of Claude usage per friend per day
+daily_cap_site = 5.00         # dollars for everyone together per day
+cache_hours = 6               # how long a search result is reused for free
+timezone = "America/Los_Angeles"   # when "today" starts and ends
+
+# One block per person. Set active = false to turn a code off.
+# [[friends]]
+# name = "Maya"
+# code = "maya-7Q4KXR"
+# daily_cap = 2.00            # optional: overrides daily_cap_per_friend

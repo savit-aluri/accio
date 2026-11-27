@@ -1,0 +1,16 @@
+# Secrets and private data: never commit these
+.env
+.env.*
+!.env.example
+friends.toml
+data/
+*.db
+*.db-shm
+*.db-wal
+
+# Local tooling
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+.claude/
