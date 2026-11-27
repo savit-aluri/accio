@@ -1,0 +1,16 @@
+# Render Blueprint: Render reads this to create the free web service from this repo.
+# Secret values are typed into the Render dashboard, never into this file.
+services:
+  - type: web
+    name: accio
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn accio.app:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips="*"
+    healthCheckPath: /healthz
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false   # your Anthropic API key, entered in the dashboard
+      - key: DATABASE_URL
+        sync: false   # your Neon connection string, entered in the dashboard
+# friends.toml (the invite codes) goes in the dashboard as a Secret File named friends.toml.

@@ -15,35 +15,77 @@ from zoneinfo import ZoneInfo
 from .settings import Friend
 
 
-class Database:
-    """One SQLite file shared by the ledger and the cache."""
+SQLITE_SCHEMA = [
+    """CREATE TABLE IF NOT EXISTS spend (
+        id INTEGER PRIMARY KEY, friend TEXT NOT NULL, day TEXT NOT NULL,
+        amount REAL NOT NULL, query TEXT NOT NULL, created_at REAL NOT NULL)""",
+    "CREATE INDEX IF NOT EXISTS spend_day ON spend(day, friend)",
+    """CREATE TABLE IF NOT EXISTS results (
+        key TEXT PRIMARY KEY, query TEXT NOT NULL, payload TEXT NOT NULL,
+        cost REAL NOT NULL, created_at REAL NOT NULL, views INTEGER NOT NULL DEFAULT 0)""",
+]
+POSTGRES_SCHEMA = [
+    """CREATE TABLE IF NOT EXISTS spend (
+        id BIGSERIAL PRIMARY KEY, friend TEXT NOT NULL, day TEXT NOT NULL,
+        amount DOUBLE PRECISION NOT NULL, query TEXT NOT NULL, created_at DOUBLE PRECISION NOT NULL)""",
+    "CREATE INDEX IF NOT EXISTS spend_day ON spend(day, friend)",
+    """CREATE TABLE IF NOT EXISTS results (
+        key TEXT PRIMARY KEY, query TEXT NOT NULL, payload TEXT NOT NULL,
+        cost DOUBLE PRECISION NOT NULL, created_at DOUBLE PRECISION NOT NULL, views INTEGER NOT NULL DEFAULT 0)""",
+]
 
-    def __init__(self, path: Path):
+
+class Database:
+    """Where spending and saved results live.
+
+    Locally this is a SQLite file. When DATABASE_URL is set (for example a free Neon
+    Postgres database), it uses that instead, so caps and saved searches survive the
+    restarts and spin-downs of free hosting.
+    """
+
+    def __init__(self, sqlite_path: Path, url: str | None = None):
         self.lock = threading.Lock()
-        self.conn = sqlite3.connect(path, check_same_thread=False, isolation_level=None)
-        self.conn.row_factory = sqlite3.Row
-        self.conn.execute("PRAGMA journal_mode=WAL")
-        self.conn.executescript(
-            """
-            CREATE TABLE IF NOT EXISTS spend (
-                id INTEGER PRIMARY KEY,
-                friend TEXT NOT NULL,
-                day TEXT NOT NULL,
-                amount REAL NOT NULL,
-                query TEXT NOT NULL,
-                created_at REAL NOT NULL
-            );
-            CREATE INDEX IF NOT EXISTS spend_day ON spend(day, friend);
-            CREATE TABLE IF NOT EXISTS results (
-                key TEXT PRIMARY KEY,
-                query TEXT NOT NULL,
-                payload TEXT NOT NULL,
-                cost REAL NOT NULL,
-                created_at REAL NOT NULL,
-                views INTEGER NOT NULL DEFAULT 0
-            );
-            """
-        )
+        self.url = url
+        self._conn = None
+        if url:
+            import psycopg
+            from psycopg.rows import dict_row
+
+            self._psycopg = psycopg
+            self._dict_row = dict_row
+            for statement in POSTGRES_SCHEMA:
+                self.query(statement)
+        else:
+            self._conn = sqlite3.connect(sqlite_path, check_same_thread=False, isolation_level=None)
+            self._conn.row_factory = sqlite3.Row
+            self._conn.execute("PRAGMA journal_mode=WAL")
+            for statement in SQLITE_SCHEMA:
+                self._conn.execute(statement)
+
+    def _postgres(self):
+        if self._conn is None or self._conn.closed:
+            self._conn = self._psycopg.connect(
+                self.url, autocommit=True, row_factory=self._dict_row, connect_timeout=20
+            )
+        return self._conn
+
+    def query(self, sql: str, args: tuple | list = ()) -> list:
+        """Runs one statement written with ? placeholders and returns its rows (rows act like dicts)."""
+        with self.lock:
+            if not self.url:
+                return self._conn.execute(sql, args).fetchall()
+            sql = sql.replace("?", "%s")
+            for attempt in (1, 2):
+                try:
+                    with self._postgres().cursor() as cur:
+                        cur.execute(sql, args)
+                        return cur.fetchall() if cur.description else []
+                except self._psycopg.OperationalError:
+                    # Neon closes idle connections when it scales to zero; reconnect once.
+                    self._conn = None
+                    if attempt == 2:
+                        raise
+            return []
 
 
 # ---------------------------------------------------------------- spending
@@ -74,13 +116,12 @@ class SpendLedger:
         return datetime.now(self._tz).date().isoformat()
 
     def spent(self, friend: str | None = None) -> float:
-        sql = "SELECT COALESCE(SUM(amount), 0) FROM spend WHERE day = ?"
+        sql = "SELECT COALESCE(SUM(amount), 0) AS total FROM spend WHERE day = ?"
         args: list = [self.today()]
         if friend is not None:
             sql += " AND friend = ?"
             args.append(friend)
-        with self._db.lock:
-            return float(self._db.conn.execute(sql, args).fetchone()[0])
+        return float(self._db.query(sql, args)[0]["total"])
 
     def check(self, friend: Friend, site_cap: float) -> None:
         friend_spent = self.spent(friend.name)
@@ -91,19 +132,17 @@ class SpendLedger:
             raise BudgetExceeded("site", site_spent, site_cap)
 
     def record(self, friend: Friend, amount: float, query: str) -> None:
-        with self._db.lock:
-            self._db.conn.execute(
-                "INSERT INTO spend (friend, day, amount, query, created_at) VALUES (?, ?, ?, ?, ?)",
-                (friend.name, self.today(), round(amount, 6), query, time.time()),
-            )
+        self._db.query(
+            "INSERT INTO spend (friend, day, amount, query, created_at) VALUES (?, ?, ?, ?, ?)",
+            (friend.name, self.today(), round(amount, 6), query, time.time()),
+        )
 
-    def report(self, days: int = 7) -> list[sqlite3.Row]:
-        with self._db.lock:
-            return self._db.conn.execute(
-                "SELECT day, friend, COUNT(*) AS searches, SUM(amount) AS dollars FROM spend "
-                "GROUP BY day, friend ORDER BY day DESC, dollars DESC LIMIT ?",
-                (days * 50,),
-            ).fetchall()
+    def report(self, days: int = 7) -> list:
+        return self._db.query(
+            "SELECT day, friend, COUNT(*) AS searches, SUM(amount) AS dollars FROM spend "
+            "GROUP BY day, friend ORDER BY day DESC, dollars DESC LIMIT ?",
+            (days * 50,),
+        )
 
 
 # ---------------------------------------------------------------- shared results
@@ -177,35 +216,32 @@ class DealCache:
         return time.time() - self._ttl
 
     @staticmethod
-    def _row(row: sqlite3.Row) -> CachedResult:
+    def _row(row) -> CachedResult:
         return CachedResult(
             key=row["key"], query=row["query"], payload=json.loads(row["payload"]),
             cost=row["cost"], created_at=row["created_at"], views=row["views"],
         )
 
     def get(self, key: str) -> CachedResult | None:
-        with self._db.lock:
-            row = self._db.conn.execute(
-                "SELECT * FROM results WHERE key = ? AND created_at >= ?", (key, self._fresh_cutoff())
-            ).fetchone()
-            if row is None:
-                return None
-            self._db.conn.execute("UPDATE results SET views = views + 1 WHERE key = ?", (key,))
-        return self._row(row)
+        rows = self._db.query(
+            "SELECT * FROM results WHERE key = ? AND created_at >= ?", (key, self._fresh_cutoff())
+        )
+        if not rows:
+            return None
+        self._db.query("UPDATE results SET views = views + 1 WHERE key = ?", (key,))
+        return self._row(rows[0])
 
     def put(self, key: str, query: str, payload: dict, cost: float) -> None:
-        with self._db.lock:
-            self._db.conn.execute(
-                "INSERT INTO results (key, query, payload, cost, created_at, views) VALUES (?, ?, ?, ?, ?, 0) "
-                "ON CONFLICT(key) DO UPDATE SET query=excluded.query, payload=excluded.payload, "
-                "cost=excluded.cost, created_at=excluded.created_at, views=0",
-                (key, query, json.dumps(payload), cost, time.time()),
-            )
+        self._db.query(
+            "INSERT INTO results (key, query, payload, cost, created_at, views) VALUES (?, ?, ?, ?, ?, 0) "
+            "ON CONFLICT(key) DO UPDATE SET query=excluded.query, payload=excluded.payload, "
+            "cost=excluded.cost, created_at=excluded.created_at, views=0",
+            (key, query, json.dumps(payload), cost, time.time()),
+        )
 
     def recent(self, limit: int = 24) -> list[CachedResult]:
-        with self._db.lock:
-            rows = self._db.conn.execute(
-                "SELECT * FROM results WHERE created_at >= ? ORDER BY created_at DESC LIMIT ?",
-                (self._fresh_cutoff(), limit),
-            ).fetchall()
+        rows = self._db.query(
+            "SELECT * FROM results WHERE created_at >= ? ORDER BY created_at DESC LIMIT ?",
+            (self._fresh_cutoff(), limit),
+        )
         return [self._row(r) for r in rows]

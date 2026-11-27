@@ -22,7 +22,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 STATIC = Path(__file__).resolve().parent / "static"
 
 settings = Settings.load()
-db = Database(settings.data_dir / "accio.db")
+db = Database(settings.data_dir / "accio.db", settings.database_url)
 directory = FriendDirectory(settings.friends)
 limiter = AttemptLimiter()
 ledger = SpendLedger(db, settings.timezone)
@@ -65,6 +65,11 @@ def budget(friend: Friend) -> dict:
 class SearchRequest(BaseModel):
     query: str = Field(min_length=2, max_length=80)
     refresh: bool = False
+
+
+@app.get("/healthz")
+def health() -> dict:
+    return {"ok": True}
 
 
 @app.get("/")

@@ -57,7 +57,7 @@ def usage() -> None:
     from accio.store import Database, SpendLedger
 
     settings = Settings.load()
-    ledger = SpendLedger(Database(settings.data_dir / "accio.db"), settings.timezone)
+    ledger = SpendLedger(Database(settings.data_dir / "accio.db", settings.database_url), settings.timezone)
     rows = ledger.report()
     if not rows:
         print("No searches yet.")

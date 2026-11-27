@@ -42,6 +42,20 @@ python manage.py friends   # names, codes and caps
 python manage.py usage     # what each friend spent, per day
 ```
 
+## Put it online for free (Render + Neon)
+
+Render runs the site from this GitHub repo on its free plan. Render's free servers sleep after 15 minutes without visitors and lose their files when they do, so spending and saved searches go in a free Neon Postgres database instead. Neither needs a credit card.
+
+1. **Database (Neon).** Sign up at https://neon.com, create a project in a US region, and copy its connection string (it starts with `postgresql://`). It contains a password, so treat it like your API key.
+2. **Website (Render).** Sign up at https://render.com with your GitHub account. Choose **New → Blueprint**, pick this repo, and Render reads `render.yaml`. When it asks, paste your Anthropic key into `ANTHROPIC_API_KEY` and the Neon string into `DATABASE_URL`.
+3. **Invite codes.** In the new service, open **Environment → Secret Files**, add a file named `friends.toml`, paste in the contents of your local `friends.toml`, and save. Render redeploys.
+4. **Share** the `https://….onrender.com` link and each friend's code.
+
+Good to know:
+- The first visit after the site has been asleep takes about a minute while Render wakes it.
+- To add a friend later: run `python manage.py add-friend NAME` locally, paste the updated `friends.toml` into the Secret File again, and save.
+- Free Render services are suspended for the rest of the month if they go over the workspace's free bandwidth. A friends-only site is far below that, but the Anthropic Console spend limit is still your real safety net.
+
 ## Files
 
 | Path | What it does |
@@ -49,7 +63,8 @@ python manage.py usage     # what each friend spent, per day
 | `accio/app.py` | Web server: checks codes, enforces caps, serves the page |
 | `accio/finder.py` | Asks Claude to search the web and report deals in a fixed shape; computes each search's cost |
 | `accio/jobs.py` | Runs searches in the background and shares one search between friends |
-| `accio/store.py` | SQLite: daily spending per friend, and saved results |
+| `accio/store.py` | Daily spending per friend and saved results: SQLite locally, Postgres (Neon) when `DATABASE_URL` is set |
 | `accio/access.py` | Invite-code lookup and a brake on code guessing |
 | `accio/static/index.html` | The page. Animations use Motion and AutoAnimate (both MIT) plus the browser's View Transitions |
-| `friends.toml`, `.env`, `data/` | Your private settings, key and database. Not for sharing |
+| `render.yaml`, `.python-version` | Settings Render uses to run the site (no secrets) |
+| `friends.toml`, `.env`, `data/` | Your private settings, key and database. Never committed |

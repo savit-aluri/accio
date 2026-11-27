@@ -11,6 +11,7 @@ from zoneinfo import ZoneInfo
 ROOT = Path(__file__).resolve().parent.parent
 
 MODEL = "claude-sonnet-5-5"
+SECRET_FILE = Path("/etc/secrets/friends.toml")  # where Render mounts secret files
 
 
 def load_dotenv(path: Path) -> None:
@@ -40,17 +41,12 @@ class Settings:
     timezone: ZoneInfo
     data_dir: Path
     model: str
+    database_url: str | None = None
 
     @classmethod
     def load(cls, root: Path = ROOT) -> "Settings":
         load_dotenv(root / ".env")
-        config_path = Path(os.environ.get("ACCIO_FRIENDS", root / "friends.toml"))
-        if not config_path.exists():
-            raise SystemExit(
-                f"Missing {config_path}. Copy friends.example.toml to friends.toml, "
-                "then add friends with: python manage.py add-friend NAME"
-            )
-        config = tomllib.loads(config_path.read_text())
+        config = tomllib.loads(cls._friends_text(root))
         limits = config.get("limits", {})
         per_friend = float(limits.get("daily_cap_per_friend", 1.00))
         friends = tuple(
@@ -75,4 +71,21 @@ class Settings:
             timezone=ZoneInfo(str(limits.get("timezone", "America/Los_Angeles"))),
             data_dir=data_dir,
             model=os.environ.get("ACCIO_MODEL", MODEL),
+            database_url=os.environ.get("DATABASE_URL") or None,
+        )
+
+    @staticmethod
+    def _friends_text(root: Path) -> str:
+        """friends.toml content: from ACCIO_FRIENDS_TOML, ACCIO_FRIENDS (a path),
+        a Render secret file at /etc/secrets/friends.toml, or the project folder."""
+        inline = os.environ.get("ACCIO_FRIENDS_TOML")
+        if inline:
+            return inline
+        candidates = [os.environ.get("ACCIO_FRIENDS"), SECRET_FILE, root / "friends.toml"]
+        for candidate in candidates:
+            if candidate and Path(candidate).exists():
+                return Path(candidate).read_text()
+        raise SystemExit(
+            "Missing friends.toml. Copy friends.example.toml to friends.toml, "
+            "then add friends with: python manage.py add-friend NAME"
         )
